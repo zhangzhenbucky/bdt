@@ -1,0 +1,22 @@
+{
+  "name": "bdt",
+  "version": "0.1.212",
+  "description": "P2P协议实现.",
+  "main": "index.js",
+  "directories": {
+    "doc": "doc",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/buckyos/bdt.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "msgpack-lite": "^0.1.26",
+  }
+}
