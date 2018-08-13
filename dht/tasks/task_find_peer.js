@@ -69,7 +69,7 @@ class FindPeerTask extends TouchNodeConvergenceTask {
                 let abort = true;
                 this.m_stepListeners.forEach(callback => {
                     if (callback) {
-                        abort = callback(DHTResult.PENDING, foundPeerList, this.n_nodes) && abort;
+                        abort = callback(DHTResult.PENDING, foundPeerList) && abort;
                     } else {
                         abort = false;
                     }
@@ -107,15 +107,6 @@ class FindPeerTask extends TouchNodeConvergenceTask {
         let serviceDescriptor = foundPeer.findService(this.servicePath);
         let isInService = serviceDescriptor && serviceDescriptor.isSigninServer();
 
-        // TODO
-        // 集成bdt到chainSDK的时候, 节点需要快速建立和销毁
-        // sn 尽量快速返回所有(或尽可能多的peer)
-        // 然后让调用方(chainSDK)自己去尝试握手peer,然后connect
-        // 后续再想一下更好的方法去做集成的测试
-        if ( response.body.n_nodes ) {
-            this.n_nodes = response.body.n_nodes;
-        }
-
         if (isInService) {
             this.m_foundPeerList.set(response.common.src.peerid, foundPeer);
         }
@@ -130,7 +121,7 @@ class FindPeerTask extends TouchNodeConvergenceTask {
         LOG_INFO(`LOCALPEER:(${this.bucket.localPeer.peerid}:${this.servicePath}) FindPeer complete:${this.m_foundPeerList.size}`);
         let foundPeerList = [...this.m_foundPeerList.values()];
         HashDistance.sortByDistance(foundPeerList, {hash: HashDistance.checkHash(this.m_peerid)});
-        this._callback(result, foundPeerList, this.n_nodes);
+        this._callback(result, foundPeerList);
 
         setImmediate(() => {
             this.m_stepListeners = [];

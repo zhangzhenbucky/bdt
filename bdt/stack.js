@@ -137,8 +137,8 @@ class BDTStack extends EventEmitter {
             searchSNInterval: 608090,
             // 查找对方SN失败后再次尝试间隔
             tryFindSNInterval: 1000,
-            // 超时误差，用于检测系统时间更新，避免过长或过短超时
-            timeoutDeviation: 500,
+            // 连接SN数量限制
+            snLimit: 3,
 
             // 最小动态端口
             minDynamicPort: 40809,
@@ -146,6 +146,8 @@ class BDTStack extends EventEmitter {
             maxDynamicPort: 60809,
             // 动态端口死亡周期
             dynamicPortDeadTime: 3600809,
+            // 扩展动态端口数量
+            dynamicExpand: 3,
         };
         if (options) {
             Object.assign(this.m_options, options);

@@ -47,9 +47,9 @@ class DynamicSocket {
         this.m_sockets = new Map(); // <port, {socket, lastSendTime, lastRecvTime}>
 
         this.m_options = {
-            minPort: 40000,
-            maxPort: 60000,
-            portDeadTime: 3600000,
+            minPort: 40809,
+            maxPort: 60809,
+            portDeadTime: 3600809,
         };
 
         if (options) {
@@ -74,6 +74,11 @@ class DynamicSocket {
         return new Promise(resolve => {
             let bindSucc = false;
             let portCount = this.m_options.maxPort - this.m_options.minPort + 1;
+
+            if (portCount <= 0) {
+                resolve(null);
+                return;
+            }
             
             let tryBindNextPort = () => {
                 let port = this._selectPort();

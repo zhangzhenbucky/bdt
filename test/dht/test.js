@@ -99,7 +99,7 @@ async function start() {
 
     setTimeout(async ()=> {
         let res = await p2p.m_dht.findPeer(params.peerid)
-        let peers = res.n_nodes.filter(val => {
+        let peers = res.peerlist.filter(val => {
             return val.id!= params.peerid && val.id != dhtPeerid
         })
 
