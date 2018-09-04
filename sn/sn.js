@@ -336,7 +336,7 @@ class SN extends EventEmitter {
         return Result.SUCCESS;
     }
     
-    _broadcastCallMessage(destPeerAddress, destPeerid, srcPeerid, srcPeerEplist, callReq) {
+    _broadcastCallMessage(destPeerAddress, destPeerid, srcPeerid, srcPeerEplist, callReq, dynamicEPList) {
         let calledReq = this.m_packageHelper.createPackage(BDTPackage.CMD_TYPE.calledReq);
         let calledHeader = calledReq.header;
         calledHeader.seq = callReq.header.seq;
@@ -355,6 +355,10 @@ class SN extends EventEmitter {
             dest: destPeerid,
             eplist: Array.from(srcPeerEplist),
         };
+
+        if (dynamicEPList && dynamicEPList.length > 0) {
+            calledBody.dynamics = dynamicEPList;
+        }
         calledReq.body = calledBody;
     
         let resendPackageId = ResendQueue.genPackageID(BDTPackage.CMD_TYPE.calledReq, callReq.header.src.peeridHash, calledHeader.seq);
@@ -387,7 +391,7 @@ class SN extends EventEmitter {
         
         let now = TimeHelper.uptimeMS();
 
-        let sendCallResp = (result, eplist, lastUpdateTime) => {
+        let sendCallResp = (result, eplist, dynamicEPList, lastUpdateTime) => {
             LOG_INFO(`[SN]: will send call resp, result:${result}, ${srcPeerid} -> ${destPeerid}`);
     
             let respBody = {
@@ -398,6 +402,9 @@ class SN extends EventEmitter {
             if (eplist) {
                 respBody.eplist = Array.from(eplist);
                 respBody.time = (lastUpdateTime? now - lastUpdateTime : -1);
+            }
+            if (dynamicEPList && dynamicEPList.length > 0) {
+                respBody.dynamics = dynamicEPList;
             }
 
             let nearSN = this.m_snDHT.getNearSN(destPeerid, true);
@@ -450,13 +457,19 @@ class SN extends EventEmitter {
         if (destPeerInfo) {
             this.m_stat.hits++;
             let destEPSet = new Set([...destPeerInfo.eplist.keys()]);
+            let dynamicEPList = null;
 
             // 追加被动方为该连接专门构造的动态地址
             let dynamics = destPeerInfo.dynamics.get(srcPeerid);
             if (dynamics) {
-                let sessionEPList = dynamics.get(reqHeader.sessionid);
-                if (sessionEPList) {
-                    sessionEPList.forEach(ep => destEPSet.add(ep));
+                let dynamicEPSet = dynamics.get(reqHeader.sessionid);
+                if (dynamicEPSet) {
+                    dynamicEPList = [];
+                    dynamicEPSet.forEach(ep => {
+                        if (!destEPSet.has(ep)) {
+                            dynamicEPList.push(ep);
+                        }
+                    })
                 }
             }
 
@@ -465,16 +478,26 @@ class SN extends EventEmitter {
             let destEPArray = [destAddressEP, ...destEPSet];
 
             let srcPeerInfo = this.m_peerCache.getPeerInfo(srcPeerid);
+
+            let srcEPList = reqBody.eplist || [];
+            let srcDynamicEPList = [];
+            if (!reqBody.isDynamic) {
+                srcEPList.push(wlanEPString);
+            } else {
+                srcDynamicEPList.push(wlanEPString);
+            }
+            this.m_peerCache.update(srcPeerid, {
+                    info: srcPeerInfo? srcPeerInfo.info : null,
+                    eplist: srcEPList,
+                }, remote);
+
             if (srcPeerInfo) {
-                if (reqBody.eplist) {
-                    reqBody.eplist.forEach(ep => srcPeerInfo.eplist.set(ep, now));
-                }
-                this._broadcastCallMessage(destPeerInfo.address, destPeerInfo.peerid, srcPeerInfo.peerid, [wlanEPString, ...srcPeerInfo.eplist.keys()], cmdPackage);
-                sendCallResp(Result.SUCCESS, destEPArray, destPeerInfo.lastUpdateTime);
+                this._broadcastCallMessage(destPeerInfo.address, destPeerInfo.peerid, srcPeerInfo.peerid, [...srcEPList, ...srcPeerInfo.eplist.keys()], cmdPackage, srcDynamicEPList);
+                sendCallResp(Result.SUCCESS, destEPArray, dynamicEPList, destPeerInfo.lastUpdateTime);
                 return Result.SUCCESS;
             } else {
-                this._broadcastCallMessage(destPeerInfo.address, destPeerInfo.peerid, srcPeerid, [wlanEPString], cmdPackage);
-                sendCallResp(Result.SUCCESS, destEPArray, destPeerInfo.lastUpdateTime);
+                this._broadcastCallMessage(destPeerInfo.address, destPeerInfo.peerid, srcPeerid, srcEPList, cmdPackage, srcDynamicEPList);
+                sendCallResp(Result.SUCCESS, destEPArray, dynamicEPList, destPeerInfo.lastUpdateTime);
                 return Result.SUCCESS;
             }
             LOG_INFO(`Found dest peer(${srcPeerid}-${destPeerid}) from sn`);
@@ -529,7 +552,7 @@ class SN extends EventEmitter {
         return Result.SUCCESS;
     }
     
-    _processCalledResp(socket, cmdPackage,remote) {
+    _processCalledResp(socket, cmdPackage, remote) {
         if(cmdPackage.body == null ||
             typeof cmdPackage.body.src !== 'string' || cmdPackage.body.src.length === 0 ||
             typeof cmdPackage.body.dest !== 'string' || cmdPackage.body.dest.length === 0) {
@@ -545,9 +568,10 @@ class SN extends EventEmitter {
         if (!srcPeerInfo) {
             return Result.SUCCESS;
         }
-        if (cmdPackage.body.sessionid) {
+
+        let wlanEPString = BaseUtil.EndPoint.toString(remote);
+        if (cmdPackage.body.sessionid && cmdPackage.body.isDynamic) {
             let sessionid = parseInt(cmdPackage.body.sessionid)
-            let wlanEPString = BaseUtil.EndPoint.toString(remote);
             let destDynamic = srcPeerInfo.dynamics.get(cmdPackage.body.dest);
             if (!destDynamic) {
                 destDynamic = new Map();
@@ -560,6 +584,8 @@ class SN extends EventEmitter {
             } else {
                 epSet.add(wlanEPString);
             }
+        } else {
+            this.m_peerCache.update(cmdPackage.body.src, {info: srcPeerInfo.info, eplist: [wlanEPString]}, remote);
         }
 
         return Result.SUCCESS;

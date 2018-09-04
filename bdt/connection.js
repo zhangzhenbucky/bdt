@@ -395,22 +395,28 @@ class BDTConnection extends EventEmitter {
         return encoder;
     }
 
-    _createCallPackage(seq) {
+    _createCallPackage(seq, isDynamic) {
         let encoder = this._createPackageHeader(BDTPackage.CMD_TYPE.callReq);
         encoder.header.seq = seq;
         encoder.header.sessionid = this.m_sessionid;
         encoder.body.src = this.m_stack.peerid;
         encoder.body.dest = this.m_remote.peerid;
+        if (isDynamic) {
+            encoder.isDynamic = isDynamic;
+        }
         return encoder;
     }
 
-    _createCalledRespPackage(called) {
+    _createCalledRespPackage(called, isDynamic) {
         let encoder = this._createPackageHeader(BDTPackage.CMD_TYPE.calledResp);
         encoder.header.ackSeq = called.header.seq;
         encoder.header.sessionid = this.m_sessionid;
         encoder.body.src = this.m_stack.peerid;
         encoder.body.dest = this.m_remote.peerid;
         encoder.body.sessionid = this.m_remote.sessionid; // 对方sessionid
+        if (isDynamic) {
+            encoder.body.isDynamic = isDynamic;
+        }
         
         return encoder;
     }
@@ -494,9 +500,14 @@ class BDTConnection extends EventEmitter {
                 this.m_respPackages[calledResp.header.cmdType] = calledResps;
                 calledResps[isDynamic] = calledResp;
                 this._changeState(BDTConnection.STATE.waitAckAck, updateRemoteSender);
+
+                if (decoder.body.dynamics && decoder.body.dynamics.length > 0) {
+                    this._addRemoteEP(decoder.body.eplist, decoder.body.dynamics);
+                }
             } else {
-                if (decoder.body.eplist && decoder.body.eplist.length) {
-                    this._addRemoteEP(decoder.body.eplist);
+                if ((decoder.body.eplist && decoder.body.eplist.length > 0) ||
+                    (decoder.body.dynamics && decoder.body.dynamics.length > 0)) {
+                    this._addRemoteEP(decoder.body.eplist, decoder.body.dynamics);
                     blog.debug(`[BDT]: connection update connecting remote address to ${decoder.body.eplist}`);
                 }
 
@@ -545,10 +556,12 @@ class BDTConnection extends EventEmitter {
             }
             
             if (this.m_state === BDTConnection.STATE.waitAck) {
-                if (decoder.body.eplist && decoder.body.eplist.length) {
-                    this._addRemoteEP(decoder.body.eplist);
-                    blog.debug(`[BDT]: connection update connecting remote address to ${decoder.body.eplist}`);
+                if ((decoder.body.eplist && decoder.body.eplist.length > 0) ||
+                    (decoder.body.dynamics && decoder.body.dynamics.length > 0)) {
+                    this._addRemoteEP(decoder.body.eplist, decoder.body.dynamics);
+                    blog.debug(`[BDT]: connection update connecting remote address to ${decoder.body.eplist} & ${decoder.body.dynamics}`);
                 }
+
                 if (decoder.body.nearSN && this.m_snCall) {
                     this.m_snCall.onSNFound([decoder.body.nearSN]);
                 }
@@ -732,19 +745,10 @@ class BDTConnection extends EventEmitter {
         let resendTimes = 0;
         const tryCallInterval = this.m_stack._getOptions().tryConnectInterval;
         
-        let callPackage = this._createCallPackage(seq);
         let postCallPackage = snPeers => {
             let now = TimeHelper.uptimeMS();
 
-            // if (resendTimes > 1) {
-            //     let calledSN = [];
-            //     for (let sn of this.m_snCall.snPeers) {
-            //         calledSN.push(sn.hash || BDTPackage.hashPeerid(sn.peerid));
-            //     }
-            //     callPackage.body.called = calledSN;
-            //     callPackage.body.entrust = [this.m_snCall.snPeers[0].hash];
-            // }
-
+            let callPackage = this._createCallPackage(seq, false);
             callPackage.body.eplist = this.m_stack.eplist;
             let resendInterval = Math.max(3, this.m_snCall.snPeers.length);
             for (let peer of snPeers) {
@@ -772,9 +776,12 @@ class BDTConnection extends EventEmitter {
                     dynamicSocket.create().then(socket => {
                         if (socket) {
                             if (this.m_snCall) {
+                                let dynamicCallPackage = this._createCallPackage(seq, true);
+                                dynamicCallPackage.body.eplist = this.m_stack.eplist;
+
                                 peer.dynamicSender = BDTPackage.createSender(dynamicSocket, socket, peer.sender.remoteEPList);
                                 peer.dynamicRemoteSender = BDTPackage.createSender(dynamicSocket, socket, []);
-                                peer.dynamicSender.postPackage(callPackage);
+                                peer.dynamicSender.postPackage(dynamicCallPackage);
                             } else {
                                 socket.close();
                             }
@@ -783,7 +790,9 @@ class BDTConnection extends EventEmitter {
                 }
 
                 if (peer.dynamicSender && peer.dynamicSender !== 'creating') {
-                    peer.dynamicSender.postPackage(callPackage);
+                    let dynamicCallPackage = this._createCallPackage(seq, true);
+                    dynamicCallPackage.body.eplist = this.m_stack.eplist;
+                    peer.dynamicSender.postPackage(dynamicCallPackage);
                 }
             }
         }
@@ -1024,6 +1033,32 @@ class BDTConnection extends EventEmitter {
             }
 
             let sender = this.m_tryConnect.remoteSender;
+            
+            if (opt.connectTimeout - tryTime <= opt.tryConnectInterval * 3 && opt.dynamicExpand > 0) {
+                let guessEPList = [];
+                this.m_tryConnect.dynamics.forEach(ep => {
+                    let addr = BaseUtil.EndPoint.toAddress(ep);
+                    if (!addr) {
+                        return;
+                    }
+                    let port = addr.port;
+
+                    let guess = (step, count) => {
+                        addr.port = port;
+                        for (let i = 0; i < count; i++) {
+                            addr.port += step;
+                            if (addr.port > 0 && addr.port <= 65535) {
+                                guessEPList.push(BaseUtil.EndPoint.toString(addr));
+                            }
+                        }
+                    }
+                    
+                    guess(-1, opt.dynamicExpand);
+                    guess(1, opt.dynamicExpand);
+                });
+                sender.addRemoteEPList(guessEPList);
+            }
+
             if (this.m_tryConnect.remoteSender.remoteEPList.length) {
                 tryTimes++;
                 // 每3次测试一下对方peer所有地址
@@ -1083,6 +1118,7 @@ class BDTConnection extends EventEmitter {
             startTime: TimeHelper.uptimeMS(),
             remoteSender: remoteSender,
             sendConnectPackage,
+            dynamics: new Set(),
         };
         
         tryConnectRoutine();
@@ -1113,8 +1149,21 @@ class BDTConnection extends EventEmitter {
         }
     }
 
-    _addRemoteEP(eplist) {
+    _addRemoteEP(eplist, dynamics) {
         if (this.m_tryConnect) {
+            eplist = eplist || [];
+            if (dynamics) {
+                dynamics = dynamics.filter(ep => {
+                    if (!this.m_tryConnect.dynamics.has(ep)) {
+                        this.m_tryConnect.dynamics.add(ep);
+                        return true;
+                    }
+                });
+                if (dynamics.length > 0) {
+                    eplist = [...eplist, ...dynamics];
+                }
+            }
+
             let newEPList = this.m_tryConnect.remoteSender.addRemoteEPList(eplist);
             if (newEPList.length > 0) {
                 let sender = null;
@@ -1263,8 +1312,9 @@ class BDTConnection extends EventEmitter {
             }
             this.m_stack._releaseSessionid(this.m_sessionid, this);
             
-            if (this.m_remote.isDynamic) {
+            if (this.m_remote.isDynamic && this.m_remote.sender) {
                 this.m_remote.sender.socket.close();
+                this.m_remote.sender = null;
             }
             setImmediate(()=>{
                 this.emit(BDTConnection.EVENT.close);

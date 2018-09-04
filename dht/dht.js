@@ -141,7 +141,7 @@ class DHTBase extends EventEmitter {
             }
         }
 
-        const generateCallback = (handler) => (result, peers = [], n_nodes = []) => {
+        const generateCallback = (handler) => (result, peers = []) => {
             if (!handler) {
                 return;
             }
@@ -149,7 +149,7 @@ class DHTBase extends EventEmitter {
                 result = 0;
                 appendLocalHost(peers);
             }
-            return handler({result, peerlist: peers, n_nodes});
+            return handler({result, peerlist: peers});
         }
 
         if (callback) {

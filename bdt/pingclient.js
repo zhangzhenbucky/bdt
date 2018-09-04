@@ -90,6 +90,7 @@ class MultiSNPingClient extends EventEmitter {
                 return total === 0? opt.searchSNIntervalInit : opt.searchSNIntervalConnecting;
             }
 
+            const snLimit = opt.snLimit;
             let lastInterval = opt.searchSNIntervalInit;
 
             let tryRefreshSNList = () => {
@@ -105,8 +106,8 @@ class MultiSNPingClient extends EventEmitter {
                         if (error || !peerlist || !peerlist.length) {
                             return ;
                         }
-                        if (peerlist.length > 3) {
-                            peerlist = peerlist.slice(0, 3);
+                        if (peerlist.length > snLimit) {
+                            peerlist = peerlist.slice(0, snLimit);
                         }
 
                         this._resetConnecting(peerlist);
@@ -413,7 +414,7 @@ class PingClient extends EventEmitter {
                     };
 
                     let opt = this.m_stack._getOptions();
-                    let pingInterval = opt.pingInterval;
+                    const pingInterval = opt.pingInterval;
                     let lastPingTime = now;
                     this.m_ping.timer = setInterval(()=>{
                         let now = TimeHelper.uptimeMS();

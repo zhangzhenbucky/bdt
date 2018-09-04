@@ -82,7 +82,7 @@ class PeerInfoCache
 
         peerInfo.updateCount++;
         peerInfo.address = address;
-        peerInfo.info =pingBody.info;
+        peerInfo.info = pingBody.info;
         peerInfo.lastUpdateTime = now;
     
         if(peerInfo.updateCount % 7 === 0) {
