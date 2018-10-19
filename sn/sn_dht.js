@@ -264,7 +264,7 @@ class SNDHT {
             let maskBitCount = 0;
             if (peer instanceof DHTPeer.Peer) {
                 let serviceDescriptor = peer.findService(servicePath);
-                if (serviceDescriptor && serviceDescriptor.isSigninServer()) {
+                if (!peer.inactive && serviceDescriptor && serviceDescriptor.isSigninServer()) {
                     maskBitCount = serviceDescriptor.getServiceInfo([], 'scope') || 0;
                 }
             }

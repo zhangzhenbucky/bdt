@@ -257,7 +257,7 @@ class BroadcastNodeTask extends TouchNodeTask {
         // <TODO> 测试代码
         this.bucket.forEachPeer(peer => {
             let serviceDescriptor = peer.findService(this.servicePath);
-            assert(serviceDescriptor && serviceDescriptor.isSigninServer(), `peer:${JSON.stringify(peer.toStruct())},servicePath:${JSON.stringify(this.servicePath)}`);
+            assert(!peer.inactive && serviceDescriptor && serviceDescriptor.isSigninServer(), `peer:${JSON.stringify(peer.toStruct())},servicePath:${JSON.stringify(this.servicePath)}`);
         });
 
         const excludePeerids = new Set(...this.m_excludePeerids, ...this.m_arrivePeeridSet);

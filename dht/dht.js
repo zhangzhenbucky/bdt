@@ -113,7 +113,7 @@ class DHTBase extends EventEmitter {
     // onStep({result, peerlist}): 阶段性返回找到的peer，部分应用更需要响应的及时性，返回true将中断本次搜索，callback返回result=ABORT(7)
     findPeer(peerid, callback, onStep) {
         let appendLocalHost = (peers) => {
-            if (peerid === this.m_bucket.localPeer.peerid) {
+            if (!this.m_bucket.localPeer.inactive && peerid === this.m_bucket.localPeer.peerid) {
                 let serviceDescriptor = this.m_bucket.localPeer.findService(this.servicePath);
                 if (!serviceDescriptor || !serviceDescriptor.isSigninServer()) {
                     return;
@@ -464,16 +464,12 @@ class DHTBase extends EventEmitter {
     // serviceDescriptor是当前子服务网络的描述符
     _activePeer(peer, isSent, isReceived, isTrust, serviceDescriptor, cmdPackage) {
         // LOG_DEBUG(`LOCALPEER(${this.m_bucket.localPeer.peerid}:${this.servicePath}) Got new peer(${peer.peerid}) for (send:${isSent},recv:${isReceived},trust:${isTrust}),serviceDescriptor=${serviceDescriptor}`);
-        if (!serviceDescriptor) {
+        if (!serviceDescriptor && !peer.inactive) {
             serviceDescriptor = peer.findService(this.servicePath);
-            if (!serviceDescriptor) {
-                this.m_bucket.removePeer(peer.peerid);
-                return;
-            }
         }
 
         let activedPeer = peer;
-        if (serviceDescriptor.isSigninServer()) {
+        if (!peer.inactive && serviceDescriptor && serviceDescriptor.isSigninServer()) {
             if (this.isRunning()) {
                 let existPeer = this.m_bucket.findPeer(peer.peerid);
                 let isOnlineBefore = existPeer? existPeer.isOnline(this.m_bucket.TIMEOUT_MS) : true;
@@ -487,7 +483,7 @@ class DHTBase extends EventEmitter {
             this.m_bucket.removePeer(peer.peerid);
         }
 
-        let servicesForPeer = serviceDescriptor.services;
+        let servicesForPeer = serviceDescriptor? serviceDescriptor.services : null;
         if (this.m_subServiceDHTs) {
             this.m_subServiceDHTs.forEach((serviceDHT, serviceID) => {
                 let serviceDescriptor = servicesForPeer? servicesForPeer.get(serviceID) : null;
@@ -625,7 +621,11 @@ class DHT extends DHTBase {
         }
     }
 
-    start() {
+    /**
+     * 启动DHT网络
+     * @param {boolean} manualActiveLocalPeer 手动激活本地PEER，如果置true，本地peer将不会被其他任何PEER找到，只能作为访问者访问DHT网络
+     */
+    start(manualActiveLocalPeer = false) {
         LOG_DEBUG(`LOCALPEER(${this.m_bucket.localPeer.peerid}:${this.servicePath}) will start.`);
 
         if (!this.m_timer) {
@@ -636,7 +636,9 @@ class DHT extends DHTBase {
                 this._logStatus();
             }, 200);
             
-            this._activePeer(this.m_bucket.localPeer, false, false, false);
+            if (!manualActiveLocalPeer) {
+                this.activeLocalPeer();
+            }
             this._update();
             setImmediate(() => this.emit(DHT.EVENT.start));
         }
@@ -791,6 +793,13 @@ class DHT extends DHTBase {
         LOG_DEBUG(`LOCALPEER(${this.m_bucket.localPeer.peerid}:${this.servicePath}) got new PEER(${remotePeerInfo.peerid}:${remotePeerInfo.eplist}) from user.`);
         this._activePeer(remotePeer, isSent, isReceived, false);
         return DHTResult.SUCCESS;
+    }
+
+    // 激活本地PEER
+    activeLocalPeer() {
+        LOG_INFO('local peer added in bucket.');
+        this.m_bucket.localPeer.active();
+        this._activePeer(this.m_bucket.localPeer, false, false, false);
     }
 
     ping(remotePeerInfo, immediate) {
@@ -1006,8 +1015,11 @@ class ServiceDHT extends DHTBase {
                     ({result, values}) => {
                         if (!values || values.size === 0) {
                             // 3.如果VALUE表中也没有搜索到，把自己写入VALUE表，失败返回
-                            const serviceDescriptor = localPeer.findService(this.servicePath);
-                            const isInService = serviceDescriptor && serviceDescriptor.isSigninServer();
+                            let isInService = !localPeer.inactive;
+                            if (isInService) {
+                                const serviceDescriptor = localPeer.findService(this.servicePath);
+                                isInService = serviceDescriptor && serviceDescriptor.isSigninServer();
+                            }
                             if (isInService) {
                                 this.saveValue(serviceTableName, localPeer.peerid, localPeer.eplist);
                             }
