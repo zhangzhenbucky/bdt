@@ -120,6 +120,18 @@ class SNDHT {
         }
     }
 
+    addSN(snPeer) {
+        if (snPeer) {
+            this.m_fatherDHT.saveValue(SN_DHT_SERVICE_ID, snPeer.peerid, snPeer.eplist);
+        }
+    }
+
+    removeSN(snPeerid) {
+        if (snPeerid) {
+            this.m_fatherDHT.deleteValue(SN_DHT_SERVICE_ID, snPeerid);
+        }
+    }
+
     findSN(peerid, fromCache, callback, onStep = undefined) {
         if (callback) {
             this._findSN(peerid,
