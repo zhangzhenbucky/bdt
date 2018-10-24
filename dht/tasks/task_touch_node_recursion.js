@@ -138,8 +138,7 @@ class TouchNodeTask extends Task {
         }
 
         if (this.m_pendingPeerList.size === 0) {
-            this._onComplete(DHTResult.SUCCESS);
-            return;
+            this._onAllPeerRequest();
         }
     }
 
@@ -159,14 +158,7 @@ class TouchNodeTask extends Task {
         outtimePeers.forEach(peerid => this.m_pendingPeerList.delete(peerid));
 
         if (this.m_pendingPeerList.size === 0) {
-            if (!this.needRedo()) {
-                this._onComplete(DHTResult.SUCCESS);
-            } else {
-                // 重做一遍
-                this.m_requestPeeridSet.clear();
-                this._startImpl();
-            }
-            return;
+            this._onAllPeerRequest();
         }
     }
 
@@ -220,6 +212,18 @@ class TouchNodeTask extends Task {
 
     needRedo() {
         return false;
+    }
+
+    _onAllPeerRequest() {
+        // 相比redo前，没有发现任何新增peer，不再redo
+        if (this.m_arrivePeeridSet.size === this.m_arrivedPeerCountBeforeRedo || !this.needRedo()) {
+            this._onComplete(DHTResult.SUCCESS);
+        } else {
+            // 重做一遍
+            this.m_arrivedPeerCountBeforeRedo = this.m_arrivePeeridSet.size;
+            this.m_requestPeeridSet.clear();
+            this._startImpl();
+        }
     }
 
     // override以下必须由子类重载

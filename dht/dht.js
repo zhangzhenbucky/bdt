@@ -775,7 +775,10 @@ class DHT extends DHTBase {
         let remotePeer = new Peer(cmdPackage.common.src);
         remotePeer.address = remoteAddr;
         
-        this._activePeer(remotePeer, false, true, true, null, cmdPackage);
+        // 本地PEER是否激活取决于本地逻辑，不取决于数据包内容
+        if (remotePeer.peerid !== localPeer.peerid) {
+            this._activePeer(remotePeer, false, true, true, null, cmdPackage);
+        }
         remotePeer = this.m_bucket.findPeer(remotePeer.peerid) || remotePeer;
         this._process(cmdPackage, remotePeer, remoteAddr, localAddr);
 

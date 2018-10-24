@@ -123,6 +123,8 @@ class DHTPackage {
         this.m_common.src.natType = srcPeerInfo.natType;
         if (srcPeerInfo.inactive) {
             this.m_common.src.inactive = true;
+        } else {
+            delete this.m_common.src.inactive;
         }
         this.m_common.dest.peerid = destPeerInfo.peerid;
         this.m_common.dest.hash = destPeerInfo.hash;
