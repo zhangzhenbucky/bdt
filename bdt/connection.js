@@ -253,6 +253,7 @@ class BDTConnection extends EventEmitter {
     }
 
     close(force=false, callback=null) {
+        this.m_userClosed = true;
         if (this.m_state === BDTConnection.STATE.closed) {
             if (callback) {
                 callback();
@@ -1362,7 +1363,11 @@ class BDTConnection extends EventEmitter {
             assert(curState >= BDTConnection.STATE.waitAck, `curState:${curState}`);
 
             let errorCode = params;
-            setImmediate(()=>{this.emit(BDTConnection.EVENT.error, errorCode);});
+            setImmediate(() => {
+                if (!this.m_userClosed || this.listenerCount(BDTConnection.EVENT.error) > 0) {
+                    this.emit(BDTConnection.EVENT.error, errorCode);
+                }
+            });
             this._changeState(BDTConnection.STATE.closed);
         } else if (newState === BDTConnection.STATE.closed) {
             const force = params;
