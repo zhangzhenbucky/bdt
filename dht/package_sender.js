@@ -88,9 +88,10 @@ class PackageSender extends EventEmitter {
             !peer.__noRecommandNeighbor) {
 
             let recommandPeerList = null;
-            if (peer.onlineDuration < (Config.Peer.recommandNeighborTime >>> 2)) {
+            const onlineDurationMS = peer.onlineDuration * 1000;
+            if (onlineDurationMS < (Config.Peer.recommandNeighborTime >>> 2)) {
                 recommandPeerList = this.m_bucket.findClosestPeers(peer.peerid);
-            } else if (peer.onlineDuration < Config.Peer.recommandNeighborTime) {
+            } else if (onlineDurationMS < Config.Peer.recommandNeighborTime) {
                 recommandPeerList = this.m_bucket.getRandomPeers();
             }
             if (recommandPeerList && recommandPeerList.length > 0) {
