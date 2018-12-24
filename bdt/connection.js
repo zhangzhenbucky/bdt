@@ -374,11 +374,11 @@ class BDTConnection extends EventEmitter {
         // generate local sessionid
         let [err, sessionid] = this.m_stack._genSessionid(this);
         if (err) {
-            blog.error(`[BDT]: create connection(id=${this.m_id}) from acceptor on vport ${this.m_vport} with remote ${this.m_remote} failed, err = ${BDT_ERROR.toString(err)}`);
+            blog.error(`[BDT]: create connection(id=${this.m_id}) from acceptor on vport ${this.m_vport} with remote ${this.m_remote.peerid}:${this.m_remote.vport}:${this.m_remote.sessionid} failed, err = ${BDT_ERROR.toString(err)}`);
             return err;
         }
         this.m_sessionid = sessionid;
-        blog.info(`[BDT]: create connection(id=${this.m_id}) from acceptor on vport ${this.m_vport} with remote ${this.m_remote}`);
+        blog.info(`[BDT]: create connection(id=${this.m_id}) from acceptor on vport ${this.m_vport} with remote ${this.m_remote.peerid}:${this.m_remote.vport}:${this.m_remote.sessionid}`);
         return BDT_ERROR.success;
     }
 
