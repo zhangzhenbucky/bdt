@@ -527,7 +527,7 @@ class BDTConnection extends EventEmitter {
 
         if (decoder.header.cmdType === BDTPackage.CMD_TYPE.calledReq) {
             // 被禁用的地址
-            if (this.m_stack.remoteFilter.isForbidden(remoteEP)) {
+            if (this.m_stack.remoteFilter.isIPForbidden(remoteEP)) {
                 return;
             }
 
@@ -578,7 +578,7 @@ class BDTConnection extends EventEmitter {
             return ;
         } else if (decoder.header.cmdType === BDTPackage.CMD_TYPE.callResp) {
             // 被禁用的地址
-            if (this.m_stack.remoteFilter.isForbidden(remoteEP)) {
+            if (this.m_stack.remoteFilter.isIPForbidden(remoteEP)) {
                 return;
             }
 

@@ -35,12 +35,15 @@ class RemoteBlackList {
 
     /**
      * 禁用PEERID|IP地址
-     * @param {string|RemoteBlackList.FORBID.all} peerid 禁用的PEERID，undefined/null等代表逻辑false的值都被解释为P2P.FORBID.all，禁用指定IP上的所有peerid
-     * @param {string|Connection|EndPoint{family@ip@port@protocol}|{address:ip}|RemoteBlackList.FORBID.all} objectWithIP 禁用的IP，undefined/null等同peerid一样处理
+     * @param {string|RemoteBlackList.FORBID.all} peerid 禁用的PEERID，P2P.FORBID.all，禁用指定IP上的所有peerid
+     * @param {string|Connection|EndPoint{family@ip@port@protocol}|{address:ip}|RemoteBlackList.FORBID.all} objectWithIP 禁用的IP，P2P.FORBID.all，禁用指定peerid使用的任何IP
      * @param { object{timeout} } options 
      */
     forbid(objectWithIP, peerid, options) {
-        peerid = peerid || RemoteBlackList.FORBID.all;
+        if (!objectWithIP || !peerid) {
+            return;
+        }
+        peerid = RemoteBlackList.FORBID.all;
         const ip = RemoteBlackList._getIP(objectWithIP);
         if (ip === RemoteBlackList.FORBID.all &&
             peerid === RemoteBlackList.FORBID.all) {
@@ -71,7 +74,9 @@ class RemoteBlackList {
      * @return {boolean}
      */
     isForbidden(objectWithIP, peerid) {
-        peerid = peerid || RemoteBlackList.FORBID.all;
+        if (!objectWithIP || !peerid) {
+            return false;
+        }
         const ip = RemoteBlackList._getIP(objectWithIP);
         if (ip === RemoteBlackList.FORBID.all &&
             peerid === RemoteBlackList.FORBID.all) {
@@ -110,8 +115,26 @@ class RemoteBlackList {
             (ip !== RemoteBlackList.FORBID.all && isIPForbidden(ip));
     }
 
+    // 等价于forbid(objectWithIP, all, options)
+    forbidIP(objectWithIP, options) {
+        this.forbid(objectWithIP, RemoteBlackList.FORBID.all, options);
+    }
+
+    isIPForbidden(objectWithIP) {
+        return this.isForbidden(objectWithIP, RemoteBlackList.FORBID.all);
+    }
+
+    // 等价于forbid(all, peerid, options)
+    forbidPeer(peerid, options) {
+        this.forbid(RemoteBlackList.FORBID.all, peerid, options);
+    }
+
+    isPeeridForbidden(peerid) {
+        return this.isForbidden(RemoteBlackList.FORBID.all, peerid);
+    }
+
     static _getIP(objectWithIP) {
-        if (!objectWithIP || objectWithIP === RemoteBlackList.FORBID.all) {
+        if (objectWithIP === RemoteBlackList.FORBID.all) {
             return RemoteBlackList.FORBID.all;
         }
 
